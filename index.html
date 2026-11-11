@@ -154,7 +154,7 @@
   .md h1{font-size:20px} .md h2{font-size:17px;border-bottom:1px solid var(--line);padding-bottom:4px} .md h3{font-size:15px}
 </style>
 <!-- Thư viện hiển thị Markdown (chỉ dùng trong popup tài liệu; thiếu mạng thì hiện chữ thô) -->
-<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 </head>
 <body>
 <header class="top">
@@ -450,6 +450,7 @@ function viewProject(id){
     <div class="ptopic">${esc(D.meta.topic||'')}</div>
     ${viewStats(id)}
   </section>
+  ${D.scores ? `<section class="card">${viewScores(id)}</section>` : ''}
   <section class="card">${viewGantt(id)}</section>
   <section class="card">${viewTasks(id)}</section>
   <div class="two">
@@ -589,12 +590,19 @@ function viewDetail(id,t){
     return `<span class="chip"><a href="#" data-act="docView" data-p="${id}" data-did="${d.id}" title="Xem trong popup">${esc(d.name)}</a><button data-act="chipDel" data-p="${id}" data-tid="${t.id}" data-did="${d.id}" title="Bỏ khỏi việc này">✕</button></span>`;
   }).join('');
   const opts = docs.filter(d=>!(t.docs||[]).includes(d.id)).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const prods = (t.product||[]).map(did => {
+    const d = docs.find(x=>x.id===did); if (!d) return '';
+    return `<span class="chip" style="border-color:#2f9d4f;background:#effaf2"><a href="#" data-act="docView" data-p="${id}" data-did="${d.id}" title="Mở file sản phẩm">📄 ${esc(d.name)}</a>${d.drive?`<a href="${esc(d.drive)}" target="_blank" rel="noopener" title="Mở trên Drive để chỉnh sửa" style="padding:0 4px">↗</a>`:''}<button data-act="prodDel" data-p="${id}" data-tid="${t.id}" data-did="${d.id}" title="Bỏ">✕</button></span>`;
+  }).join('');
+  const popts = docs.filter(d=>!(t.product||[]).includes(d.id)).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
   return `<div class="dgrid">
     <div><h4>Các bước</h4>${stepsHtml}</div>
     <div>
-      <h4>Sản phẩm</h4><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="output" value="${esc(t.output||'')}" placeholder="Làm xong thì có gì trong tay?">
+      <h4>Làm vào file</h4><div class="chips">${prods || '<span class="muted">Chưa gắn file sản phẩm.</span>'}</div>
+      ${popts?`<div class="row"><select data-act="prodAdd" data-p="${id}" data-tid="${t.id}"><option value="">+ gắn file sản phẩm…</option>${popts}</select></div>`:''}
+      <h4 style="margin-top:10px">Cần có gì trong file</h4><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="output" value="${esc(t.output||'')}" placeholder="Làm xong thì trong file có gì?">
       <h4 style="margin-top:10px">Xong khi</h4><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="doneWhen" value="${esc(t.doneWhen||'')}" placeholder="Tiêu chí đánh dấu xong">
-      <h4 style="margin-top:10px">Tài liệu</h4><div class="chips">${chips || '<span class="muted">Chưa gắn tài liệu.</span>'}</div>
+      <h4 style="margin-top:10px">Tài liệu tham khảo</h4><div class="chips">${chips || '<span class="muted">Chưa gắn tài liệu.</span>'}</div>
       ${opts?`<div class="row"><select data-act="chipAdd" data-p="${id}" data-tid="${t.id}"><option value="">+ gắn tài liệu…</option>${opts}</select></div>`:''}
       <h4 style="margin-top:10px">Ghi chú của bạn</h4>
       <textarea class="txt" rows="4" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="note" placeholder="Ghi lại tiến triển, câu trả lời của GVHD, vướng mắc…">${esc(t.note||'')}</textarea>
@@ -641,6 +649,47 @@ function viewSurvey(id){
       <span class="muted">phiếu hợp lệ (cộng dồn)</span><button data-act="svAdd" data-p="${id}">Ghi nhận</button></div>
     <table><tbody>${sv.log.slice().reverse().map((l,i)=>{ const k = sv.log.length-1-i, prev = sv.log[k-1];
       return `<tr><td>${fmt(l.date)}</td><td><b>${l.count}</b></td><td class="muted">${prev?'+'+(l.count-prev.count):''}</td><td><button class="icon" data-act="svDel" data-p="${id}" data-i="${k}">✕</button></td></tr>`;}).join('') || '<tr><td class="muted">Chưa ghi nhận lần nào.</td></tr>'}</tbody></table>`;
+}
+
+/* ---------- Bảng điểm (chỉ hiện nếu dữ liệu có "scores") ---------- */
+const SK = [['L','Listening'],['R','Reading'],['W','Writing'],['S','Speaking']];
+const ieltsRound = x => { const f = Math.floor(x), r = x - f; return r < .25 ? f : r < .75 ? f + .5 : f + 1; };
+const bandTxt = b => b == null || b === '' ? '—' : (+b).toFixed(1);
+function viewScores(id){
+  const sc = DATA[id].scores, tg = sc.targets || (sc.targets = {}), td = today();
+  sc.log.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  const latest = {};
+  sc.log.forEach(l => { if (l.band != null && l.band !== '') latest[l.skill] = l; });
+  const ov = SK.every(([k])=>latest[k]) ? ieltsRound(SK.reduce((a,[k])=>a + +latest[k].band, 0)/4) : null;
+  const gap = (cur, t) => { if (cur == null || t == null || t === '') return '';
+    const d = +cur - +t; return d >= 0 ? '<span class="tag done">Đạt</span>' : `<span style="color:var(--late);font-weight:600;font-size:13px">thiếu ${(-d).toFixed(1)}</span>`; };
+  const tgIn = k => `<input type="number" class="num" step="0.5" min="0" max="9" data-act="scT" data-p="${id}" data-f="${k}" value="${tg[k] ?? ''}">`;
+  const col = (k, name) => { const l = latest[k];
+    return `<div class="stat"><span>${name}</span><b>${l ? bandTxt(l.band) : '—'}</b>
+      <span>đích ${tgIn(k)} ${gap(l?.band, tg[k])}</span><br><span>${l ? `${fmt(l.date)} · ${esc(l.type)}` : 'chưa có band'}</span></div>`; };
+  return `<h2>Bảng điểm <span class="sp"></span><span class="muted">band mới nhất từng kỹ năng so với điểm đích</span></h2>
+    <div class="stats" style="margin-top:0">
+      ${SK.map(([k,n])=>col(k,n)).join('')}
+      <div class="stat"><span>Overall</span><b>${ov != null ? bandTxt(ov) : '—'}</b>
+        <span>đích ${tgIn('overall')} ${gap(ov, tg.overall)}</span><br><span>${ov != null ? 'TB 4 band mới nhất, làm tròn kiểu IELTS' : 'cần band đủ 4 kỹ năng'}</span></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <input type="date" id="scDate" value="${td}">
+      <select id="scSkill">${SK.map(([k])=>`<option>${k}</option>`).join('')}</select>
+      <input id="scType" placeholder="loại (Đề full, Passage, Task 2…)" style="width:170px">
+      <input id="scItem" placeholder="bài" style="width:190px">
+      <input id="scScore" placeholder="điểm (27/40, 81%)" style="width:110px">
+      <input type="number" class="num" id="scBand" step="0.5" min="0" max="9" placeholder="band">
+      <input id="scNote" placeholder="ghi chú" style="width:150px">
+      <button class="primary" data-act="scAdd" data-p="${id}">Ghi điểm</button>
+    </div>
+    <table><thead><tr><th>Ngày</th><th>KN</th><th>Loại</th><th>Bài</th><th>Điểm</th><th>Band</th><th>Ghi chú</th><th></th></tr></thead><tbody>
+    ${sc.log.slice().reverse().map((l,i)=>{ const k = sc.log.length-1-i;
+      return `<tr><td>${fmt(l.date)}</td><td><b>${esc(l.skill)}</b></td><td>${esc(l.type)}</td><td>${esc(l.item)}</td>
+        <td>${esc(l.score||'')}</td><td><b>${bandTxt(l.band)}</b></td><td class="muted">${esc(l.note||'')}</td>
+        <td><button class="icon" data-act="scDel" data-p="${id}" data-i="${k}">✕</button></td></tr>`; }).join('')
+      || '<tr><td class="muted" colspan="8">Chưa có điểm nào.</td></tr>'}
+    </tbody></table>`;
 }
 
 /* ---------- Tài liệu ---------- */
@@ -725,12 +774,14 @@ V.addEventListener('change', e => {
     return save(id);
   }
   if (a === 'chipAdd') { if (!el.value) return; const t = findTask(D, el.dataset.tid); t.docs = (t.docs||[]).concat(el.value); return commit(id); }
+  if (a === 'prodAdd') { if (!el.value) return; const t = findTask(D, el.dataset.tid); t.product = (t.product||[]).concat(el.value); return commit(id); }
   if (a === 'ms') {
     const m = D.milestones[+el.dataset.i], f = el.dataset.f;
     if (f === 'done') m.done = el.checked; else if (el.value) m[f] = el.value;
     return commit(id);
   }
   if (a === 'sv') { const f = el.dataset.f; if (!el.value) return; D.survey[f] = f==='checkDate' ? el.value : +el.value; return commit(id); }
+  if (a === 'scT') { D.scores.targets[el.dataset.f] = el.value === '' ? null : +el.value; return commit(id); }
   if (a === 'import') {
     const file = el.files[0]; if (!file) return;
     const rd = new FileReader();
@@ -781,8 +832,17 @@ V.addEventListener('click', e => {
     document.querySelector(`tr[data-row="${nid}"] input[data-f=name]`)?.select(); return;
   }
   if (a === 'chipDel') { const t = findTask(D, el.dataset.tid); t.docs = (t.docs||[]).filter(x=>x!==el.dataset.did); return commit(id); }
+  if (a === 'prodDel') { const t = findTask(D, el.dataset.tid); t.product = (t.product||[]).filter(x=>x!==el.dataset.did); return commit(id); }
   if (a === 'msAdd') { D.milestones.push({id:'M'+Date.now(), name:'Mốc mới', date:today(), done:false}); return commit(id); }
   if (a === 'msDel') { if (confirm('Xoá mốc này?')) { D.milestones.splice(+el.dataset.i,1); commit(id); } return; }
+  if (a === 'scAdd') {
+    const g = k => document.getElementById(k).value.trim();
+    const date = g('scDate'), band = g('scBand');
+    if (!date || (!g('scScore') && band === '')) return alert('Nhập ngày và ít nhất điểm hoặc band.');
+    D.scores.log.push({date, skill:g('scSkill'), type:g('scType'), item:g('scItem'), score:g('scScore'), band: band === '' ? null : +band, note:g('scNote')});
+    return commit(id);
+  }
+  if (a === 'scDel') { if (confirm('Xoá dòng điểm này?')) { D.scores.log.splice(+el.dataset.i,1); commit(id); } return; }
   if (a === 'svAdd') {
     const date = document.getElementById('svDate').value, count = parseInt(document.getElementById('svCount').value,10);
     if (!date || isNaN(count)) return alert('Nhập ngày và tổng số phiếu hợp lệ (cộng dồn).');
@@ -804,7 +864,7 @@ V.addEventListener('click', e => {
   }
   if (a === 'docDel') {
     if (!confirm('Xoá tài liệu này khỏi danh sách? (file thật không bị xoá)')) return;
-    D.docs = D.docs.filter(x=>x.id!==el.dataset.did); D.tasks.forEach(t=>t.docs=(t.docs||[]).filter(x=>x!==el.dataset.did)); return commit(id);
+    D.docs = D.docs.filter(x=>x.id!==el.dataset.did); D.tasks.forEach(t=>{ t.docs=(t.docs||[]).filter(x=>x!==el.dataset.did); t.product=(t.product||[]).filter(x=>x!==el.dataset.did); }); return commit(id);
   }
   if (a === 'docView') { e.preventDefault(); return openDoc(id, el.dataset.did); }
   if (a === 'pushNow') { clearTimeout(TIMER[id]); PENDING[id] = true; return push(id); }
