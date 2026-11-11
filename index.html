@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bảng theo dõi kế hoạch</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#6b7280; --line:#e3e6eb; --soft:#f3f4f7;
+    --late:#d64545; --ok:#2f9d4f; --today:#fff3b8; --block:#fde8e8; --weekend:#f4f5f8;
+    --LW:230px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  a{color:#3557c5}
+  header.top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding:10px 24px 0}
+  header.top h1{font-size:16px;margin:0 0 8px}
+  nav.tabs{display:flex;gap:2px;flex-wrap:wrap}
+  nav.tabs a{padding:7px 14px;border-radius:8px 8px 0 0;text-decoration:none;color:var(--muted);font-weight:600;font-size:13px;border:1px solid transparent;border-bottom:none}
+  nav.tabs a.on{color:var(--ink);background:var(--bg);border-color:var(--line)}
+  nav.tabs a .pip{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  nav.tabs a .dirty{color:var(--late);margin-left:4px}
+  main{padding:16px 24px 48px;display:grid;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card h2 .sp{flex:1}
+  .ptitle{font-size:18px;margin:0}
+  .ptopic{color:var(--muted);font-size:13px;margin-top:2px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .stat{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .stat b{display:block;font-size:22px}
+  .stat span{color:var(--muted);font-size:12px}
+  .bar{height:8px;background:#eceef2;border-radius:99px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--ok)}
+  button,.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
+  button:hover,.btn:hover{background:#f0f2f5}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.icon{padding:1px 7px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{border:none;border-radius:0}
+  .seg button.on{background:var(--ink);color:#fff}
+  .muted{color:var(--muted);font-size:12px}
+  .warn{color:var(--late);font-size:11px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:900px){.two{grid-template-columns:1fr}}
+  .hidden{display:none}
+
+  /* ---------- Gantt ---------- */
+  .gantt{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+  .ginner{position:relative}
+  .grow{display:flex;align-items:center;min-height:24px;position:relative;z-index:1}
+  .glabel{flex:0 0 var(--LW);width:var(--LW);padding:0 8px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;position:sticky;left:0;background:#fff;z-index:3;border-right:1px solid var(--line);align-self:stretch;display:flex;align-items:center}
+  .glabel.done{color:var(--muted);text-decoration:line-through}
+  .gtrack{position:relative;flex:1;height:20px}
+  .gbar{position:absolute;top:3px;height:14px;border-radius:3px;font-size:10px;color:#fff;line-height:14px;padding-left:4px;overflow:hidden;white-space:nowrap}
+  .gbar.done{opacity:.35}
+  .gbar.late{outline:2px solid var(--late);outline-offset:1px}
+  .gphase .glabel{font-weight:600;color:var(--muted);font-size:11px;cursor:default}
+  .ghead{position:sticky;top:0;z-index:4;background:#fff}
+  .ghead .gtrack{height:22px;border-bottom:1px solid var(--line)}
+  .gmonth{position:absolute;top:0;font-size:11px;color:var(--muted);border-left:1px solid var(--line);padding-left:3px;height:100%;white-space:nowrap}
+  .gday{position:absolute;top:0;height:100%;font-size:10px;text-align:center;color:var(--muted);line-height:1.15;padding-top:2px;border-left:1px solid #eef0f3}
+  .gday.we{background:var(--weekend)}
+  .gday.td{background:#ffd84d;color:#000;font-weight:700}
+  .ghead.days .gtrack{height:30px}
+  .goverlay{position:absolute;top:0;bottom:0;left:var(--LW);right:0;pointer-events:none;z-index:0}
+  .gtoday{position:absolute;top:0;bottom:0;width:2px;background:var(--late)}
+  .gtodaycol{position:absolute;top:0;bottom:0;background:var(--today);border-left:1px solid #f0c800;border-right:1px solid #f0c800}
+  .gwe{position:absolute;top:0;bottom:0;background:var(--weekend)}
+  .gblock{position:absolute;top:0;bottom:0;background:var(--block)}
+  .gblock span{position:absolute;bottom:2px;left:3px;font-size:10px;color:#b44;white-space:nowrap}
+  .gms{position:absolute;top:4px;width:11px;height:11px;transform:translateX(-5px) rotate(45deg);background:var(--ink)}
+  .gms.done{background:var(--ok)}
+
+  /* ---------- Bảng việc ---------- */
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:middle}
+  th{font-size:12px;color:var(--muted);font-weight:600}
+  tr.phase td{background:var(--soft);font-weight:600;font-size:13px}
+  tr.phase .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  tr.done > td input.txt{color:var(--muted);text-decoration:line-through}
+  tr.flash > td{animation:flash 1.4s}
+  @keyframes flash{from{background:#fff6cc}to{background:transparent}}
+  input.txt,textarea.txt{width:100%;border:1px solid transparent;background:transparent;font:inherit;padding:3px 4px;border-radius:4px}
+  input.txt:hover,input.txt:focus,textarea.txt:hover,textarea.txt:focus{border-color:var(--line);background:#fff}
+  textarea.txt{border-color:var(--line);background:#fff;resize:vertical;min-height:60px}
+  input[type=date]{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:4px;padding:2px 3px}
+  input.num{width:56px}
+  input[type=checkbox]{width:16px;height:16px;cursor:pointer;vertical-align:middle}
+  .tag{font-size:11px;padding:1px 6px;border-radius:99px;white-space:nowrap}
+  .tag.late{background:#fde2e2;color:var(--late)}
+  .tag.doing{background:#e6efff;color:#3557c5}
+  .tag.done{background:#e3f4e7;color:var(--ok)}
+  .tag.todo{background:#f0f1f4;color:var(--muted)}
+  .caret{border:none;background:none;padding:0 4px;font-size:12px;color:var(--muted);transition:transform .15s}
+  .caret.open{transform:rotate(90deg)}
+  tr.detail > td{background:#fbfbfd;padding:12px 14px 14px 40px}
+  .dgrid{display:grid;grid-template-columns:1.4fr 1fr;gap:14px 24px}
+  @media (max-width:900px){.dgrid{grid-template-columns:1fr}}
+  .dgrid h4{margin:0 0 4px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  ul.steps{list-style:none;margin:0;padding:0}
+  ul.steps li{display:flex;gap:8px;align-items:flex-start;padding:3px 0}
+  ul.steps li input{margin-top:2px;flex:none}
+  ul.steps li.ok span{color:var(--muted);text-decoration:line-through}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:2px 4px 2px 10px;font-size:12px}
+  .chip a{text-decoration:none}
+  .chip button{border:none;background:none;padding:0 4px;color:var(--muted);font-size:11px}
+  select{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:4px;padding:2px}
+
+  /* ---------- Tài liệu ---------- */
+  .docgrp{margin-top:10px}
+  .docgrp h4{margin:0 0 4px;font-size:12px;color:var(--muted)}
+  .doc{display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+  .doc .nm{flex:1;min-width:200px}
+  .doc .path{display:block;color:var(--muted);font-size:11px;word-break:break-all}
+  .nolink{color:#b0b5bf;font-size:12px}
+
+  /* ---------- Tuần này ---------- */
+  .ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+  .ovitem{display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px dashed var(--line)}
+  .ovitem .nm{flex:1;cursor:pointer}
+  .ovitem .nm:hover{text-decoration:underline}
+  .load{display:grid;grid-template-columns:70px 1fr 50px;gap:6px;align-items:center;font-size:12px;margin:3px 0}
+  .stack{display:flex;height:14px;background:#eceef2;border-radius:3px;overflow:hidden;position:relative}
+  .stack i{display:block;height:100%}
+  .budget{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--late)}
+  .placeholder{color:var(--muted);text-align:center;padding:40px 10px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  /* ---------- Thanh trên: trạng thái GitHub ---------- */
+  .topbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .topbar h1{margin:0;flex:1}
+  .gh{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .gh .dot{width:8px;height:8px;border-radius:50%;background:#b0b5bf}
+  .gh .dot.ok{background:var(--ok)} .gh .dot.busy{background:#d98a1c} .gh .dot.err{background:var(--late)}
+
+  /* ---------- Popup ---------- */
+  .modal{position:fixed;inset:0;background:rgba(20,24,33,.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px}
+  .modal .box{background:#fff;border-radius:10px;width:min(1000px,100%);height:min(88vh,1100px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+  .modal .box.small{height:auto;width:min(520px,100%)}
+  .modal .mhead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .modal .mhead b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .modal .mbody{flex:1;overflow:auto;padding:18px 26px}
+  .modal iframe{flex:1;border:none;width:100%}
+  .modal input[type=password],.modal input[type=text]{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+  .md{line-height:1.6;max-width:880px}
+  .md table{border-collapse:collapse;margin:10px 0;font-size:13px}
+  .md th,.md td{border:1px solid var(--line);padding:4px 8px;vertical-align:top}
+  .md th{background:var(--soft);color:var(--ink)}
+  .md blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--line);color:#4b5563}
+  .md pre{background:var(--soft);padding:10px;border-radius:6px;overflow:auto}
+  .md h1{font-size:20px} .md h2{font-size:17px;border-bottom:1px solid var(--line);padding-bottom:4px} .md h3{font-size:15px}
+</style>
+<!-- Thư viện hiển thị Markdown (chỉ dùng trong popup tài liệu; thiếu mạng thì hiện chữ thô) -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="topbar">
+    <h1>Bảng theo dõi kế hoạch</h1>
+    <span class="gh" id="ghStatus"></span>
+    <button data-act="tokenOpen" id="tokenBtn">🔑 GitHub</button>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+<main id="view"></main>
+<div id="modal"></div>
+
+<!-- Dữ liệu từng dự án: mỗi file gán window.PROJECT_DATA['<id>'] (xem HUONG-DAN-DU-LIEU.md).
+     File chưa tồn tại thì bỏ qua, tab hiện ô trống. -->
+<script src="data/luan-van.js"></script>
+<script src="data/hoc-bong.js" onerror="void 0"></script>
+<script src="data/ielts.js" onerror="void 0"></script>
+
+<script>
+/* ======================= CẤU HÌNH ======================= */
+const PROJECTS = [
+  {id:'luan-van', name:'Luận văn',    color:'#8a5cd0'},
+  {id:'hoc-bong', name:'Học bổng TQ', color:'#d64545'},
+  {id:'ielts',    name:'IELTS',       color:'#0f9b8e'}
+];
+const STORE = 'ke-hoach:';
+const DAY = 86400000, DW = 26;              // DW = độ rộng 1 ngày (px) ở chế độ xem theo ngày
+const FILE = window.PROJECT_DATA || {};
+const DATA = {};                            // id -> dữ liệu đang dùng
+const UI = JSON.parse(localStorage.getItem(STORE+'ui') || '{}');
+UI.mode = UI.mode || {}; UI.open = UI.open || {}; UI.hideDone = UI.hideDone || {};
+const saveUI = () => localStorage.setItem(STORE+'ui', JSON.stringify(UI));
+
+/* ======================= TIỆN ÍCH ======================= */
+const P = s => { const [y,m,d] = s.split('-').map(Number); return Date.UTC(y,m-1,d); };
+const addDays = (s,n) => new Date(P(s)+n*DAY).toISOString().slice(0,10);
+const diff = (a,b) => Math.round((P(b)-P(a))/DAY);
+const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const fmt = s => { if(!s) return ''; const [y,m,d]=s.split('-'); return `${d}/${m}/${y.slice(2)}`; };
+const fmtS = s => { const [,m,d]=s.split('-'); return `${d}/${m}`; };
+const dow = s => new Date(P(s)).getUTCDay();          // 0 = CN
+const WD = ['CN','T2','T3','T4','T5','T6','T7'];
+const monday = s => addDays(s, -((dow(s)+6)%7));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const encPath = p => p.split('/').map(seg => seg==='..'||seg==='.' ? seg : encodeURIComponent(seg)).join('/');
+const IS_LOCAL = location.protocol === 'file:';
+
+/* ======================= GITHUB ======================= */
+// Dữ liệu và tài liệu .md nằm trong repo PRIVATE; trang này (repo public) chỉ là giao diện.
+const GH = {owner:'mthang96onion', repo:'de-tai-1', branch:'main', root:'tien-do/'};  // root = vị trí index.html trong repo private
+let TOKEN = localStorage.getItem(STORE+'token') || '';
+let MODE = 'file';                          // 'gh' = đọc/ghi GitHub · 'file' = file trên máy + trình duyệt · 'need-token'
+const SHA = {}, PENDING = {}, TIMER = {}, INFLIGHT = {}, AGAIN = {};
+
+const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')), c => c.charCodeAt(0)));
+const b64enc = str => { const b = new TextEncoder().encode(str); let bin = '';
+  for (let i=0; i<b.length; i+=0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i+0x8000)); return btoa(bin); };
+// Nhận cả file .js (window.PROJECT_DATA['id'] = {...};) lẫn JSON thuần
+const parseDataJs = txt => { const m = txt.search(/\]\s*=\s*\{/);
+  const s = m >= 0 ? txt.indexOf('{', m) : txt.indexOf('{'); return JSON.parse(txt.slice(s, txt.lastIndexOf('}')+1)); };
+const toDataJs = (id,d) => `window.PROJECT_DATA = window.PROJECT_DATA || {};\nwindow.PROJECT_DATA['${id}'] = ${JSON.stringify(d, null, 2)};\n`;
+const dataPath = id => `${GH.root}data/${id}.js`;
+const ghHeaders = (raw) => ({Authorization:`Bearer ${TOKEN}`, Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'});
+const ghUrl = path => `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${encPath(path)}`;
+const ghGet = (path, raw) => fetch(ghUrl(path) + `?ref=${GH.branch}`, {headers: ghHeaders(raw), cache:'no-store'});
+
+function setGh(state, msg){
+  const el = document.getElementById('ghStatus');
+  el.innerHTML = state ? `<span class="dot ${state}"></span>${esc(msg)}` : '';
+}
+
+/* Đường dẫn tài liệu (tương đối từ index.html) → đường dẫn trong repo; null nếu nằm ngoài repo */
+function repoPath(rel){
+  const parts = (GH.root + rel).split('/'), out = [];
+  for (const s of parts) { if (s === '..') { if (!out.length) return null; out.pop(); } else if (s !== '.') out.push(s); }
+  return out.join('/');
+}
+
+async function loadFromGitHub(){
+  setGh('busy', 'Đang tải từ GitHub…');
+  const chk = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}`, {headers: ghHeaders()});
+  if (!chk.ok) throw new Error(chk.status === 401 ? 'Token sai hoặc đã hết hạn' : chk.status === 404 ? `Token không có quyền vào repo ${GH.repo}` : 'Lỗi GitHub ' + chk.status);
+  for (const p of PROJECTS) {
+    const r = await ghGet(dataPath(p.id));
+    if (r.status === 404) { delete DATA[p.id]; continue; }
+    if (!r.ok) throw new Error('Lỗi đọc ' + dataPath(p.id) + ': ' + r.status);
+    const j = await r.json(), remote = parseDataJs(b64dec(j.content));
+    SHA[p.id] = j.sha;
+    // Bản trên trình duyệt chưa kịp đẩy lên (đóng tab sớm) và được sửa tiếp từ đúng bản này → giữ và đẩy lên
+    const raw = localStorage.getItem(STORE+p.id), base = localStorage.getItem(STORE+p.id+':base');
+    const local = raw ? JSON.parse(raw) : null;
+    if (local && base === j.sha && (local.updated||'') > (remote.updated||'')) { DATA[p.id] = local; schedulePush(p.id); }
+    else { DATA[p.id] = remote; localStorage.setItem(STORE+p.id, JSON.stringify(remote)); localStorage.setItem(STORE+p.id+':base', j.sha); }
+  }
+  MODE = 'gh';
+  if (!Object.values(PENDING).some(Boolean)) setGh('ok', `GitHub: ${GH.repo}`);
+}
+
+function loadFromFile(){
+  PROJECTS.forEach(p => {
+    const f = FILE[p.id], raw = localStorage.getItem(STORE+p.id);
+    const l = raw ? JSON.parse(raw) : null;
+    if (l && (!f || !f.updated || (l.updated||'') >= f.updated)) DATA[p.id] = l;
+    else if (f) DATA[p.id] = clone(f);
+  });
+}
+
+async function loadAll(){
+  if (TOKEN) {
+    try { await loadFromGitHub(); return; }
+    catch(e) { setGh('err', e.message + ' — đang dùng dữ liệu trên máy'); }
+  } else setGh('', '');
+  loadFromFile();
+  MODE = Object.keys(DATA).length ? 'file' : 'need-token';
+}
+
+function schedulePush(id){
+  PENDING[id] = true; setGh('busy', 'Chờ lưu lên GitHub…');
+  clearTimeout(TIMER[id]); TIMER[id] = setTimeout(() => push(id), 2500);
+}
+async function push(id){
+  if (INFLIGHT[id]) { AGAIN[id] = true; return; }
+  INFLIGHT[id] = true; setGh('busy', 'Đang lưu lên GitHub…');
+  try {
+    const body = {message: `Cập nhật ${id} – ${new Date().toLocaleString('vi-VN')}`, content: b64enc(toDataJs(id, DATA[id])), branch: GH.branch};
+    if (SHA[id]) body.sha = SHA[id];
+    const r = await fetch(ghUrl(dataPath(id)), {method:'PUT', headers:{...ghHeaders(), 'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if (r.status === 409 || r.status === 422) {
+      const g = await ghGet(dataPath(id)), j = await g.json();
+      DATA[id] = parseDataJs(b64dec(j.content)); SHA[id] = j.sha;
+      localStorage.setItem(STORE+id, JSON.stringify(DATA[id])); localStorage.setItem(STORE+id+':base', j.sha);
+      PENDING[id] = false; render();
+      alert('Dữ liệu vừa được sửa từ máy khác. Trang đã tải bản mới nhất — thao tác vừa rồi của bạn CHƯA được lưu, hãy làm lại.');
+    } else if (!r.ok) {
+      throw new Error('Lưu thất bại (' + r.status + ')');
+    } else {
+      const j = await r.json(); SHA[id] = j.content.sha;
+      localStorage.setItem(STORE+id+':base', SHA[id]); PENDING[id] = false;
+      setGh('ok', 'Đã lưu lên GitHub lúc ' + new Date().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'}));
+    }
+  } catch(e) { setGh('err', e.message + ' — thay đổi vẫn giữ trên trình duyệt'); }
+  INFLIGHT[id] = false;
+  if (AGAIN[id]) { AGAIN[id] = false; push(id); }
+  renderTabs();
+}
+window.addEventListener('beforeunload', e => { if (Object.values(PENDING).some(Boolean)) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ======================= LƯU / NẠP ======================= */
+const isDirty = id => {
+  if (MODE === 'gh') return !!PENDING[id];
+  const raw = localStorage.getItem(STORE+id); if (!raw) return false;
+  const l = JSON.parse(raw), f = FILE[id]; return !f || (l.updated||'') > (f.updated||'');
+};
+function save(id){
+  const d = DATA[id]; d.updated = new Date().toISOString();
+  localStorage.setItem(STORE+id, JSON.stringify(d));
+  if (MODE === 'gh') schedulePush(id);
+}
+function commit(id){ save(id); render(); }
+
+/* ======================= LOGIC VIỆC ======================= */
+function status(t){
+  const td = today();
+  if (t.done) return 'done';
+  if (td > t.end) return 'late';
+  if (td >= t.start) return 'doing';
+  return 'todo';
+}
+const LABEL = {done:'Xong', late:'Quá hạn', doing:'Đang làm', todo:'Chưa tới'};
+const findTask = (D,id) => D.tasks.find(t => t.id === id);
+const phaseColor = (D,ph) => (D.phases.find(p=>p.id===ph)||{}).color || '#888';
+function depWarn(D,t){
+  const bad = (t.deps||[]).map(id=>findTask(D,id)).filter(d => d && d.end >= t.start);
+  return bad.length ? `bắt đầu trước khi ${bad.map(d=>d.id).join(', ')} xong` : '';
+}
+function cascade(D, id, seen = new Set()){
+  if (seen.has(id)) return [];
+  seen.add(id);
+  const src = findTask(D,id); let moved = [];
+  D.tasks.filter(u => !u.done && (u.deps||[]).includes(id)).forEach(u => {
+    if (u.start <= src.end) {
+      const n = diff(u.start, src.end) + 1;
+      u.start = addDays(u.start, n); u.end = addDays(u.end, n);
+      moved.push(u.id);
+    }
+    moved = moved.concat(cascade(D, u.id, seen));
+  });
+  return [...new Set(moved)];
+}
+const hoursOf = ts => ts.reduce((a,t)=>a+(+t.hours||0),0);
+
+/* ======================= RENDER CHUNG ======================= */
+let current = location.hash.slice(1) || 'tuan-nay';
+window.addEventListener('hashchange', () => { current = location.hash.slice(1) || 'tuan-nay'; render(); window.scrollTo(0,0); });
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML =
+    `<a href="#tuan-nay" class="${current==='tuan-nay'?'on':''}">Tuần này</a>` +
+    PROJECTS.map(p => `<a href="#${p.id}" class="${current===p.id?'on':''}"><span class="pip" style="background:${p.color}"></span>${esc(p.name)}${DATA[p.id]&&isDirty(p.id)?`<span class="dirty" title="${MODE==='gh'?'Đang chờ lưu lên GitHub':'Có thay đổi chưa xuất ra file'}">●</span>`:''}</a>`).join('');
+}
+function render(){
+  renderTabs();
+  const v = document.getElementById('view');
+  const gs = v.querySelector('.gantt'); const keepScroll = gs ? gs.scrollLeft : null;
+  if (MODE === 'need-token') v.innerHTML = viewNeedToken();
+  else if (current === 'tuan-nay') v.innerHTML = viewOverview();
+  else if (PROJECTS.some(p=>p.id===current)) v.innerHTML = DATA[current] ? viewProject(current) : viewEmpty(current);
+  else v.innerHTML = '<div class="card placeholder">Không có trang này.</div>';
+  const g = v.querySelector('.gantt');
+  if (g) {
+    if (keepScroll !== null && !g.dataset.jumpToday) g.scrollLeft = keepScroll;
+    else if (g.dataset.todayX) g.scrollLeft = Math.max(0, +g.dataset.todayX - 200);
+  }
+}
+
+function viewNeedToken(){
+  return `<div class="card placeholder">
+    <h2 style="justify-content:center">Cần token GitHub để xem dữ liệu</h2>
+    Kế hoạch và tài liệu nằm trong repo riêng tư. Bấm nút dưới, dán token đã tạo (chỉ lưu trong trình duyệt này).<br><br>
+    <button class="primary" data-act="tokenOpen">🔑 Nhập token</button>
+  </div>`;
+}
+
+function viewEmpty(id){
+  const p = PROJECTS.find(x=>x.id===id);
+  return `<div class="card placeholder">
+    <h2 style="justify-content:center">${esc(p.name)}</h2>
+    Chưa có dữ liệu cho dự án này.<br>
+    Tạo file <code>data/${id}.js</code> theo hướng dẫn trong <code>HUONG-DAN-DU-LIEU.md</code> — trang sẽ tự hiện lịch, việc, mốc.
+  </div>`;
+}
+
+/* ======================= TAB: TUẦN NÀY ======================= */
+function viewOverview(){
+  const td = today(), in7 = addDays(td, 7), in14 = addDays(td, 14);
+  let cards = '';
+  PROJECTS.forEach(p => {
+    const D = DATA[p.id];
+    if (!D) { cards += `<div class="card"><h2><span class="pip" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color}"></span>${esc(p.name)}</h2><p class="muted">Chưa có dữ liệu.</p></div>`; return; }
+    const tot = hoursOf(D.tasks), dn = hoursOf(D.tasks.filter(t=>t.done)), pct = tot?Math.round(dn/tot*100):0;
+    const late = D.tasks.filter(t=>status(t)==='late');
+    const soon = D.tasks.filter(t=>!t.done && status(t)!=='late' && t.start<=in7);
+    const ms = (D.milestones||[]).filter(m=>!m.done && m.date<=in14).sort((a,b)=>a.date<b.date?-1:1);
+    const item = (t,extra) => `<div class="ovitem"><input type="checkbox" data-act="ovdone" data-p="${p.id}" data-tid="${t.id}" ${t.done?'checked':''}>
+      <span class="nm" data-act="goto" data-p="${p.id}" data-tid="${t.id}">${t.id} · ${esc(t.name)}</span>${extra}</div>`;
+    cards += `<div class="card">
+      <h2><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color}"></span>
+        <a href="#${p.id}" style="color:inherit;text-decoration:none">${esc(p.name)}</a><span class="sp"></span>
+        <span class="muted">${pct}% · hạn ${fmt(D.meta.deadline)} (còn ${diff(td,D.meta.deadline)} ngày)</span></h2>
+      <div class="bar" style="margin-top:-4px"><i style="width:${pct}%;background:${p.color}"></i></div>
+      ${late.length?`<h4 class="warn" style="margin:12px 0 2px">QUÁ HẠN (${late.length})</h4>`+late.map(t=>item(t,`<span class="tag late">${fmtS(t.end)}</span>`)).join(''):''}
+      <h4 class="muted" style="margin:12px 0 2px">ĐANG LÀM / BẮT ĐẦU TRONG 7 NGÀY</h4>
+      ${soon.map(t=>item(t,`<span class="muted">${fmtS(t.start)}→${fmtS(t.end)} · ${t.hours}h</span>`)).join('') || '<p class="muted">Không có.</p>'}
+      <h4 class="muted" style="margin:12px 0 2px">MỐC TRONG 14 NGÀY</h4>
+      ${ms.map(m=>`<div class="ovitem"><span style="width:16px">◆</span><span class="nm">${esc(m.name)}</span><span class="muted">${fmtS(m.date)} · còn ${diff(td,m.date)} ngày</span></div>`).join('') || '<p class="muted">Không có.</p>'}
+    </div>`;
+  });
+  return `<div class="ov">${cards}</div>${viewLoad()}`;
+}
+
+function viewLoad(){
+  const start = monday(today()), weeks = 10, rows = [];
+  for (let w=0; w<weeks; w++) rows.push({wk:addDays(start,7*w), by:{}});
+  PROJECTS.forEach(p => {
+    const D = DATA[p.id]; if (!D) return;
+    D.tasks.filter(t=>!t.done).forEach(t => {
+      const n = diff(t.start,t.end)+1, per = (+t.hours||0)/n;
+      for (let i=0;i<n;i++){
+        const d = addDays(t.start,i), w = Math.floor(diff(start,d)/7);
+        if (w>=0 && w<weeks) rows[w].by[p.id] = (rows[w].by[p.id]||0) + per;
+      }
+    });
+  });
+  const budgets = PROJECTS.map(p=>DATA[p.id]?.meta?.weeklyBudget).filter(x=>x);
+  const budget = budgets.length===PROJECTS.filter(p=>DATA[p.id]).length ? budgets.reduce((a,b)=>a+b,0) : null;
+  const max = Math.max(1, budget||0, ...rows.map(r=>Object.values(r.by).reduce((a,b)=>a+b,0)));
+  return `<div class="card"><h2>Tải giờ dự kiến theo tuần <span class="muted">(chia đều số giờ của mỗi việc chưa xong trên các ngày của nó)</span></h2>
+    ${rows.map(r => { const sum = Object.values(r.by).reduce((a,b)=>a+b,0);
+      return `<div class="load"><span>${fmtS(r.wk)}</span><div class="stack">${
+        PROJECTS.filter(p=>r.by[p.id]).map(p=>`<i title="${esc(p.name)}: ${r.by[p.id].toFixed(1)}h" style="width:${r.by[p.id]/max*100}%;background:${p.color}"></i>`).join('')
+      }${budget?`<span class="budget" style="left:${budget/max*100}%"></span>`:''}</div><b style="${budget&&sum>budget?'color:var(--late)':''}">${sum.toFixed(0)}h</b></div>`; }).join('')}
+    <p class="muted">${PROJECTS.map(p=>`<span style="color:${p.color}">■</span> ${esc(p.name)}`).join(' &nbsp; ')}${budget?' &nbsp; <span style="color:var(--late)">|</span> ngân sách giờ/tuần':' · Đặt "giờ/tuần" ở từng dự án để hiện vạch ngân sách.'}</p></div>`;
+}
+
+/* ======================= TAB: DỰ ÁN ======================= */
+function viewProject(id){
+  const D = DATA[id];
+  return `
+  <section class="card">
+    <h1 class="ptitle">${esc(D.meta.title)}</h1>
+    <div class="ptopic">${esc(D.meta.topic||'')}</div>
+    ${viewStats(id)}
+  </section>
+  <section class="card">${viewGantt(id)}</section>
+  <section class="card">${viewTasks(id)}</section>
+  <div class="two">
+    <section class="card">${viewMilestones(id)}</section>
+    ${D.survey ? `<section class="card">${viewSurvey(id)}</section>` : ''}
+  </div>
+  <section class="card">${viewDocs(id)}</section>
+  <section class="card">${viewSync(id)}</section>`;
+}
+
+function viewStats(id){
+  const D = DATA[id], td = today();
+  const tot = hoursOf(D.tasks), dn = hoursOf(D.tasks.filter(t=>t.done)), pct = tot?Math.round(dn/tot*100):0;
+  const late = D.tasks.filter(t=>status(t)==='late'), doing = D.tasks.filter(t=>status(t)==='doing');
+  const next = (D.milestones||[]).filter(m=>!m.done).sort((a,b)=>a.date<b.date?-1:1)[0];
+  const left = diff(td, D.meta.deadline);
+  return `<div class="stats">
+    <div class="stat"><b>${pct}%</b><span>khối lượng đã xong (${dn}/${tot} giờ)</span><div class="bar"><i style="width:${pct}%"></i></div></div>
+    <div class="stat"><b>${D.tasks.filter(t=>t.done).length}/${D.tasks.length}</b><span>việc đã xong · ${doing.length} đang trong lịch</span></div>
+    <div class="stat"><b style="color:${late.length?'var(--late)':'inherit'}">${late.length}</b><span>việc quá hạn${late.length?': '+late.map(t=>t.id).join(', '):''}</span></div>
+    <div class="stat"><b style="color:${left<14?'var(--late)':'inherit'}">${left}</b><span>ngày tới hạn nộp<br><input type="date" data-act="meta" data-p="${id}" data-f="deadline" value="${D.meta.deadline}"></span></div>
+    <div class="stat"><b style="font-size:15px">${next?esc(next.name):'—'}</b><span>${next?'mốc kế tiếp · '+fmt(next.date)+' (còn '+diff(td,next.date)+' ngày)':''}</span></div>
+    <div class="stat"><b>${Math.round((tot-dn)/Math.max(1,left/7))}h</b><span>cần mỗi tuần để kịp hạn<br>ngân sách: <input type="number" class="num" data-act="meta" data-p="${id}" data-f="weeklyBudget" value="${D.meta.weeklyBudget??''}" placeholder="?"> h/tuần</span></div>
+  </div>`;
+}
+
+/* ---------- Gantt ---------- */
+function viewGantt(id){
+  const D = DATA[id], mode = UI.mode[id] || 'gon', td = today();
+  const all = D.tasks.flatMap(t=>[t.start,t.end]).concat((D.milestones||[]).map(m=>m.date), [td]).sort();
+  const start = addDays(all[0], -2), end = addDays(all[all.length-1], 3);
+  const span = diff(start, end) + 1;
+  const day = mode === 'ngay';
+  const X = s => day ? diff(start,s)*DW + 'px' : diff(start,s)/span*100 + '%';
+  const W = (a,b) => day ? (diff(a,b)+1)*DW + 'px' : (diff(a,b)+1)/span*100 + '%';
+  const inner = day ? `width:calc(var(--LW) + ${span*DW}px)` : 'min-width:900px';
+
+  // Đầu bảng
+  let head = '';
+  if (day) {
+    let months = '', days = '';
+    for (let i=0;i<span;i++){
+      const d = addDays(start,i), w = dow(d);
+      if (i===0 || d.endsWith('-01')) months += `<div class="gmonth" style="left:${i*DW}px">Tháng ${+d.slice(5,7)}/${d.slice(0,4)}</div>`;
+      days += `<div class="gday ${w===0||w===6?'we':''} ${d===td?'td':''}" style="left:${i*DW}px;width:${DW}px" title="${fmt(d)}">${+d.slice(8)}<br>${WD[w]}</div>`;
+    }
+    head = `<div class="grow ghead"><div class="glabel"></div><div class="gtrack">${months}</div></div>
+            <div class="grow ghead days" style="top:22px"><div class="glabel muted">Việc</div><div class="gtrack">${days}</div></div>`;
+  } else {
+    let months = '', d = start.slice(0,8)+'01';
+    if (d < start) d = addDays(d.slice(0,8)+'28',5).slice(0,8)+'01';
+    while (d <= end) { months += `<div class="gmonth" style="left:${X(d)}">T${+d.slice(5,7)}/${d.slice(2,4)}</div>`; d = addDays(d.slice(0,8)+'28',5).slice(0,8)+'01'; }
+    head = `<div class="grow ghead"><div class="glabel muted">Việc</div><div class="gtrack">${months}</div></div>`;
+  }
+
+  // Thân
+  let rows = '';
+  D.phases.forEach(ph => {
+    const ts = D.tasks.filter(t=>t.phase===ph.id); if (!ts.length) return;
+    rows += `<div class="grow gphase"><div class="glabel">${esc(ph.name)}</div><div class="gtrack"></div></div>`;
+    ts.forEach(t => {
+      const st = status(t);
+      rows += `<div class="grow"><div class="glabel ${t.done?'done':''}" data-act="jump" data-tid="${t.id}" title="${esc(t.name)}">${t.id} · ${esc(t.name)}</div>
+        <div class="gtrack"><div class="gbar ${t.done?'done':''} ${st==='late'?'late':''}" title="${t.id}: ${fmt(t.start)} → ${fmt(t.end)} · ${t.hours}h"
+        style="left:${X(t.start)};width:${W(t.start,t.end)};background:${phaseColor(D,t.phase)}">${day?t.id:''}</div></div></div>`;
+    });
+  });
+  rows += `<div class="grow gphase"><div class="glabel">Mốc</div><div class="gtrack">${
+    (D.milestones||[]).map(m=>`<div class="gms ${m.done?'done':''}" style="left:${day?`calc(${X(m.date)} + ${DW/2}px)`:X(m.date)}" title="${esc(m.name)} · ${fmt(m.date)}"></div>`).join('')}</div></div>`;
+
+  // Lớp nền: cuối tuần, khoảng nghỉ, hôm nay
+  let ov = '';
+  if (day) for (let i=0;i<span;i++){ const w = dow(addDays(start,i)); if (w===0||w===6) ov += `<div class="gwe" style="left:${i*DW}px;width:${DW}px"></div>`; }
+  (D.blocks||[]).forEach(b => {
+    if (b.end < start || b.start > end) return;
+    const s = b.start < start ? start : b.start, e = b.end > end ? end : b.end;
+    ov += `<div class="gblock" style="left:${X(s)};width:${W(s,e)}"><span>${esc(b.name)}</span></div>`;
+  });
+  const showToday = td >= start && td <= end;
+  if (showToday) ov += day ? `<div class="gtodaycol" style="left:${X(td)};width:${DW}px"></div>` : `<div class="gtoday" style="left:${X(td)}"></div>`;
+
+  return `<h2>Lịch tổng thể <span class="sp"></span>
+      <span class="seg"><button data-act="mode" data-p="${id}" data-v="gon" class="${!day?'on':''}">Gọn</button><button data-act="mode" data-p="${id}" data-v="ngay" class="${day?'on':''}">Theo ngày</button></span>
+      ${day?`<button data-act="mode" data-p="${id}" data-v="ngay" data-today="1">↦ Hôm nay</button>`:''}</h2>
+    <div class="gantt" ${day&&showToday?`data-today-x="${diff(start,td)*DW}"`:''} ${UI.jumpToday?'data-jump-today="1"':''}>
+      <div class="ginner" style="${inner}"><div class="goverlay">${ov}</div>${head}${rows}</div>
+    </div>
+    <p class="muted">Bấm tên việc để mở chi tiết. Viền đỏ = quá hạn chưa xong · ${day?'cột vàng':'vạch đỏ'} = hôm nay · ◆ = mốc${(D.blocks||[]).length?' · vùng hồng = ngày nghỉ':''}.</p>`;
+}
+
+/* ---------- Danh sách việc ---------- */
+function viewTasks(id){
+  const D = DATA[id], hide = UI.hideDone[id], open = UI.open[id] || [];
+  let h = '';
+  D.phases.forEach(ph => {
+    const ts = D.tasks.filter(t=>t.phase===ph.id);
+    h += `<tr class="phase"><td colspan="10"><span class="dot" style="background:${ph.color||'#888'}"></span>${esc(ph.name)}
+          <span class="muted">· ${ts.filter(t=>t.done).length}/${ts.length} xong · ${hoursOf(ts)}h</span>
+          <button class="icon" style="float:right" data-act="addTask" data-p="${id}" data-ph="${ph.id}" title="Thêm việc vào nhóm này">+ việc</button></td></tr>`;
+    ts.forEach(t => {
+      if (hide && t.done) return;
+      const st = status(t), w = t.done ? '' : depWarn(D,t), isOpen = open.includes(t.id);
+      const steps = t.steps || [], sd = t.stepsDone || [];
+      h += `<tr data-row="${t.id}" class="${t.done?'done':''}">
+        <td style="white-space:nowrap"><button class="caret ${isOpen?'open':''}" data-act="toggle" data-p="${id}" data-tid="${t.id}" title="Xem chi tiết">▶</button><input type="checkbox" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="done" ${t.done?'checked':''}></td>
+        <td>${t.id}</td>
+        <td style="min-width:260px"><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="name" value="${esc(t.name)}">${w?`<div class="warn">⚠ ${w}</div>`:''}</td>
+        <td><input type="date" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="start" value="${t.start}"></td>
+        <td><input type="date" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="end" value="${t.end}"></td>
+        <td><input type="number" class="txt num" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="hours" value="${t.hours}" min="0"></td>
+        <td><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="deps" value="${(t.deps||[]).join(', ')}" style="width:70px"></td>
+        <td><span class="tag ${st}">${LABEL[st]}${t.done&&t.doneDate?' '+fmtS(t.doneDate):''}</span>${steps.length?`<div class="muted">${sd.length}/${steps.length} bước</div>`:''}</td>
+        <td>${t.note?'<span title="Có ghi chú">📝</span>':''}</td>
+        <td style="white-space:nowrap"><button class="icon" data-act="shift" data-p="${id}" data-tid="${t.id}" title="Dời lịch việc này (và việc phụ thuộc)">⇢</button><button class="icon" data-act="delTask" data-p="${id}" data-tid="${t.id}" title="Xoá">✕</button></td>
+      </tr>`;
+      if (isOpen) h += `<tr class="detail" data-detail="${t.id}"><td colspan="10">${viewDetail(id,t)}</td></tr>`;
+    });
+  });
+  return `<h2>Danh sách việc <span class="sp"></span>
+      <label class="muted"><input type="checkbox" data-act="hideDone" data-p="${id}" ${hide?'checked':''}> Ẩn việc đã xong</label>
+      <button data-act="openAll" data-p="${id}">Mở hết chi tiết</button><button data-act="closeAll" data-p="${id}">Thu gọn</button></h2>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th></th><th>Mã</th><th>Việc</th><th>Bắt đầu</th><th>Kết thúc</th><th>Giờ</th><th>Phụ thuộc</th><th>Trạng thái</th><th></th><th></th></tr></thead>
+      <tbody>${h}</tbody></table></div>`;
+}
+
+function viewDetail(id,t){
+  const D = DATA[id], steps = t.steps || [], sd = t.stepsDone || [], docs = D.docs || [];
+  const editing = (UI.editSteps||'') === id+':'+t.id;
+  const stepsHtml = editing
+    ? `<textarea class="txt" rows="${Math.max(4,steps.length+1)}" data-act="stepsText" data-p="${id}" data-tid="${t.id}">${esc(steps.join('\n'))}</textarea>
+       <div class="row"><button data-act="editSteps" data-p="${id}" data-tid="">Xong</button><span class="muted">Mỗi dòng một bước.</span></div>`
+    : (steps.length ? `<ul class="steps">${steps.map((s,i)=>`<li class="${sd.includes(i)?'ok':''}"><input type="checkbox" data-act="step" data-p="${id}" data-tid="${t.id}" data-i="${i}" ${sd.includes(i)?'checked':''}><span>${esc(s)}</span></li>`).join('')}</ul>` : '<p class="muted">Chưa có bước nào.</p>')
+      + `<div class="row"><button data-act="editSteps" data-p="${id}" data-tid="${t.id}">✎ Sửa các bước</button></div>`;
+  const chips = (t.docs||[]).map(did => {
+    const d = docs.find(x=>x.id===did); if (!d) return '';
+    return `<span class="chip"><a href="#" data-act="docView" data-p="${id}" data-did="${d.id}" title="Xem trong popup">${esc(d.name)}</a><button data-act="chipDel" data-p="${id}" data-tid="${t.id}" data-did="${d.id}" title="Bỏ khỏi việc này">✕</button></span>`;
+  }).join('');
+  const opts = docs.filter(d=>!(t.docs||[]).includes(d.id)).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  return `<div class="dgrid">
+    <div><h4>Các bước</h4>${stepsHtml}</div>
+    <div>
+      <h4>Sản phẩm</h4><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="output" value="${esc(t.output||'')}" placeholder="Làm xong thì có gì trong tay?">
+      <h4 style="margin-top:10px">Xong khi</h4><input class="txt" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="doneWhen" value="${esc(t.doneWhen||'')}" placeholder="Tiêu chí đánh dấu xong">
+      <h4 style="margin-top:10px">Tài liệu</h4><div class="chips">${chips || '<span class="muted">Chưa gắn tài liệu.</span>'}</div>
+      ${opts?`<div class="row"><select data-act="chipAdd" data-p="${id}" data-tid="${t.id}"><option value="">+ gắn tài liệu…</option>${opts}</select></div>`:''}
+      <h4 style="margin-top:10px">Ghi chú của bạn</h4>
+      <textarea class="txt" rows="4" data-act="tf" data-p="${id}" data-tid="${t.id}" data-f="note" placeholder="Ghi lại tiến triển, câu trả lời của GVHD, vướng mắc…">${esc(t.note||'')}</textarea>
+    </div></div>`;
+}
+
+/* ---------- Mốc ---------- */
+function viewMilestones(id){
+  const D = DATA[id], td = today();
+  D.milestones = D.milestones || [];
+  D.milestones.sort((a,b)=>a.date<b.date?-1:1);
+  return `<h2>Mốc quan trọng</h2><table><tbody>${D.milestones.map((m,i)=>{
+      const late = !m.done && td > m.date;
+      return `<tr>
+        <td><input type="checkbox" data-act="ms" data-p="${id}" data-i="${i}" data-f="done" ${m.done?'checked':''}></td>
+        <td><input class="txt" data-act="ms" data-p="${id}" data-i="${i}" data-f="name" value="${esc(m.name)}" style="${m.done?'text-decoration:line-through;color:var(--muted)':''}"></td>
+        <td><input type="date" data-act="ms" data-p="${id}" data-i="${i}" data-f="date" value="${m.date}"></td>
+        <td>${m.done?'<span class="tag done">Đạt</span>':late?'<span class="tag late">Trễ</span>':`<span class="muted">còn ${diff(td,m.date)} ngày</span>`}</td>
+        <td><button class="icon" data-act="msDel" data-p="${id}" data-i="${i}">✕</button></td></tr>`;
+    }).join('')}</tbody></table>
+    <div class="row"><button data-act="msAdd" data-p="${id}">+ Thêm mốc</button></div>`;
+}
+
+/* ---------- Thu phiếu (chỉ hiện nếu dữ liệu có "survey") ---------- */
+function viewSurvey(id){
+  const D = DATA[id], sv = D.survey, td = today();
+  sv.log.sort((a,b)=>a.date<b.date?-1:1);
+  const cur = sv.log.length ? sv.log[sv.log.length-1].count : 0;
+  const pct = Math.min(100, Math.round(cur/sv.target*100));
+  const tk = sv.taskId ? findTask(D, sv.taskId) : null, endD = tk ? tk.end : D.meta.deadline;
+  const perDay = Math.max(0, Math.ceil((sv.target-cur)/Math.max(1, diff(td,endD))));
+  let check;
+  if (cur >= sv.checkCount) check = `<span class="tag done">Đạt mốc ${sv.checkCount}</span>`;
+  else if (td > sv.checkDate) check = `<span class="tag late">Chưa đạt ${sv.checkCount} trước ${fmtS(sv.checkDate)} → mở thêm kênh</span>`;
+  else check = `<span class="tag todo">Cần ${sv.checkCount} phiếu trước ${fmtS(sv.checkDate)}</span>`;
+  return `<h2>Thu phiếu khảo sát</h2>
+    <div class="row"><b style="font-size:20px">${cur}/${sv.target}</b><span class="muted">phiếu hợp lệ</span>${check}</div>
+    <div class="bar"><i style="width:${pct}%;background:#d98a1c"></i></div>
+    <p class="muted">Cần ~${perDay} phiếu/ngày để đủ trước ${fmt(endD)}${tk?` (hết hạn việc ${tk.id})`:''}.</p>
+    <div class="row"><span class="muted">Mục tiêu</span><input type="number" class="num" data-act="sv" data-p="${id}" data-f="target" value="${sv.target}">
+      <span class="muted">Mốc giữa kỳ ≥</span><input type="number" class="num" data-act="sv" data-p="${id}" data-f="checkCount" value="${sv.checkCount}">
+      <span class="muted">trước</span><input type="date" data-act="sv" data-p="${id}" data-f="checkDate" value="${sv.checkDate}"></div>
+    <div class="row"><input type="date" id="svDate" value="${td}"><input type="number" class="num" id="svCount" placeholder="tổng">
+      <span class="muted">phiếu hợp lệ (cộng dồn)</span><button data-act="svAdd" data-p="${id}">Ghi nhận</button></div>
+    <table><tbody>${sv.log.slice().reverse().map((l,i)=>{ const k = sv.log.length-1-i, prev = sv.log[k-1];
+      return `<tr><td>${fmt(l.date)}</td><td><b>${l.count}</b></td><td class="muted">${prev?'+'+(l.count-prev.count):''}</td><td><button class="icon" data-act="svDel" data-p="${id}" data-i="${k}">✕</button></td></tr>`;}).join('') || '<tr><td class="muted">Chưa ghi nhận lần nào.</td></tr>'}</tbody></table>`;
+}
+
+/* ---------- Tài liệu ---------- */
+function viewDocs(id){
+  const D = DATA[id], docs = D.docs || [];
+  const groups = [...new Set(docs.map(d=>d.group||'Khác'))];
+  return `<h2>Tài liệu <span class="sp"></span><button data-act="docAdd" data-p="${id}">+ Thêm tài liệu</button></h2>
+    <p class="muted" style="margin:0"><b>Xem</b> = mở trong popup: file .md và ảnh đọc từ repo GitHub; PDF/Word không đưa lên repo nên xem qua link Drive (✎ để dán)${IS_LOCAL?' hoặc nút <b>Mở</b> (file trên máy)':''}.</p>
+    ${groups.map(g=>`<div class="docgrp"><h4>${esc(g)}</h4>${docs.filter(d=>(d.group||'Khác')===g).map(d=>`
+      <div class="doc"><span class="nm">${esc(d.name)}<span class="path">${esc(d.path||'')}</span></span>
+        <button class="primary" data-act="docView" data-p="${id}" data-did="${d.id}">Xem</button>
+        ${d.path&&IS_LOCAL?`<a class="btn" href="${esc(encPath(d.path))}" target="_blank" rel="noopener">Mở</a>`:''}
+        ${d.drive?`<a class="btn" href="${esc(d.drive)}" target="_blank" rel="noopener">Drive</a>`:'<span class="nolink">chưa có link Drive</span>'}
+        <button class="icon" data-act="docDrive" data-p="${id}" data-did="${d.id}" title="Dán / sửa link Drive">✎</button>
+        <button class="icon" data-act="docDel" data-p="${id}" data-did="${d.id}" title="Xoá khỏi danh sách">✕</button>
+      </div>`).join('')}</div>`).join('')}`;
+}
+
+/* ---------- Lưu & đồng bộ ---------- */
+function viewSync(id){
+  const D = DATA[id], dirty = isDirty(id);
+  if (MODE === 'gh') return `<h2>Lưu &amp; đồng bộ</h2>
+    <p class="muted" style="margin-top:0">Mỗi thay đổi tự lưu lên repo riêng tư <code>${GH.owner}/${GH.repo}</code> sau ~3 giây (mỗi lần lưu là một commit).
+    ${dirty?'<b style="color:#d98a1c">Đang chờ lưu…</b>':'Đã khớp với GitHub.'}
+    Cập nhật lần cuối: ${D.updated?new Date(D.updated).toLocaleString('vi-VN'):'—'}.</p>
+    <div class="row">
+      <button class="primary" data-act="pushNow" data-p="${id}">Lưu ngay</button>
+      <button data-act="reloadGh">Tải lại từ GitHub</button>
+      <button data-act="export" data-p="${id}">Tải bản sao về máy</button>
+    </div>`;
+  return `<h2>Lưu &amp; đồng bộ</h2>
+    <p class="muted" style="margin-top:0">Thay đổi tự lưu trong trình duyệt này${D.updated?` (lần cuối ${new Date(D.updated).toLocaleString('vi-VN')})`:''}.
+    ${dirty?'<b style="color:var(--late)">Có thay đổi chưa xuất ra file.</b>':'Trình duyệt và file dữ liệu đang khớp.'}
+    Để lưu vào repo: bấm <b>Xuất</b> → chép file tải về đè lên <code>data/${id}.js</code> → commit &amp; push.</p>
+    <div class="row">
+      <button class="primary" data-act="export" data-p="${id}">Xuất data/${id}.js</button>
+      <label class="btn">Nhập file…<input type="file" class="hidden" accept=".js,.json" data-act="import" data-p="${id}"></label>
+      <button data-act="revert" data-p="${id}" ${FILE[id]?'':'disabled'}>Bỏ thay đổi, dùng lại bản trong file</button>
+    </div>`;
+}
+
+/* ======================= SỰ KIỆN ======================= */
+const V = document.getElementById('view');
+
+V.addEventListener('change', e => {
+  const el = e.target, a = el.dataset.act; if (!a) return;
+  const id = el.dataset.p, D = DATA[id];
+  if (a === 'meta') {
+    const f = el.dataset.f;
+    if (f === 'weeklyBudget') D.meta.weeklyBudget = el.value === '' ? null : +el.value;
+    else if (el.value) D.meta[f] = el.value;
+    return commit(id);
+  }
+  if (a === 'ovdone') { const t = findTask(D, el.dataset.tid); t.done = el.checked; t.doneDate = el.checked ? today() : null; return commit(id); }
+  if (a === 'hideDone') { UI.hideDone[id] = el.checked; saveUI(); return render(); }
+  if (a === 'tf') {
+    const t = findTask(D, el.dataset.tid), f = el.dataset.f;
+    if (f === 'done') { t.done = el.checked; t.doneDate = el.checked ? today() : null; }
+    else if (f === 'hours') t.hours = +el.value || 0;
+    else if (f === 'deps') t.deps = el.value.split(/[,\s]+/).map(s=>s.trim().toUpperCase()).filter(s=>s && s!==t.id);
+    else if (f === 'start' || f === 'end') {
+      if (!el.value) return render();
+      if (f === 'start') { const len = diff(t.start,t.end); t.start = el.value; if (t.end < t.start) t.end = addDays(t.start,len); }
+      else { t.end = el.value; if (t.end < t.start) t.start = t.end; }
+      const backup = clone(D.tasks), moved = cascade(D, t.id);
+      if (moved.length && !confirm(`Lịch mới chồng lên việc phụ thuộc. Đẩy lùi ${moved.join(', ')} theo?\n(Huỷ = chỉ đổi riêng ${t.id})`)) {
+        const keep = {start:t.start, end:t.end}; D.tasks = backup; Object.assign(findTask(D,t.id), keep);
+      }
+    }
+    else t[f] = el.value;
+    return commit(id);
+  }
+  if (a === 'step') {
+    const t = findTask(D, el.dataset.tid), i = +el.dataset.i;
+    t.stepsDone = (t.stepsDone||[]).filter(x=>x!==i); if (el.checked) t.stepsDone.push(i);
+    return commit(id);
+  }
+  if (a === 'stepsText') {
+    const t = findTask(D, el.dataset.tid), old = t.steps || [], oldDone = (t.stepsDone||[]).map(i=>old[i]);
+    t.steps = el.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    t.stepsDone = t.steps.map((s,i)=>oldDone.includes(s)?i:-1).filter(i=>i>=0);
+    return save(id);
+  }
+  if (a === 'chipAdd') { if (!el.value) return; const t = findTask(D, el.dataset.tid); t.docs = (t.docs||[]).concat(el.value); return commit(id); }
+  if (a === 'ms') {
+    const m = D.milestones[+el.dataset.i], f = el.dataset.f;
+    if (f === 'done') m.done = el.checked; else if (el.value) m[f] = el.value;
+    return commit(id);
+  }
+  if (a === 'sv') { const f = el.dataset.f; if (!el.value) return; D.survey[f] = f==='checkDate' ? el.value : +el.value; return commit(id); }
+  if (a === 'import') {
+    const file = el.files[0]; if (!file) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try { const j = parseDataJs(rd.result);
+            if (!j.tasks) throw 0; DATA[id] = j; commit(id); }
+      catch(_) { alert('File không đúng định dạng.'); }
+    };
+    rd.readAsText(file);
+  }
+});
+
+V.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el || el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
+  const a = el.dataset.act, id = el.dataset.p || current, D = DATA[id];
+  const openList = () => (UI.open[id] = UI.open[id] || []);
+
+  if (a === 'goto') { UI.open[id] = [...new Set(openList().concat(el.dataset.tid))]; saveUI(); location.hash = id; setTimeout(()=>flash(el.dataset.tid), 50); return; }
+  if (a === 'mode') { UI.mode[id] = el.dataset.v; saveUI(); UI.jumpToday = el.dataset.v==='ngay'; render(); UI.jumpToday = false; return; }
+  if (a === 'jump' || a === 'toggle') {
+    const tid = el.dataset.tid, l = openList();
+    if (a === 'toggle' && l.includes(tid)) UI.open[id] = l.filter(x=>x!==tid); else if (!l.includes(tid)) l.push(tid);
+    saveUI(); render(); if (a === 'jump') flash(tid); return;
+  }
+  if (a === 'openAll') { UI.open[id] = D.tasks.map(t=>t.id); saveUI(); return render(); }
+  if (a === 'closeAll') { UI.open[id] = []; saveUI(); return render(); }
+  if (a === 'editSteps') { UI.editSteps = el.dataset.tid ? id+':'+el.dataset.tid : ''; return render(); }
+  if (a === 'shift') {
+    const t = findTask(D, el.dataset.tid);
+    const n = parseInt(prompt(`Dời ${t.id} bao nhiêu ngày? (số âm = kéo sớm lại)\nViệc phụ thuộc bị chồng lịch sẽ tự đẩy theo.`, '7'), 10);
+    if (!n) return;
+    t.start = addDays(t.start,n); t.end = addDays(t.end,n);
+    const moved = cascade(D, t.id); commit(id);
+    if (moved.length) alert('Đã đẩy theo: ' + moved.join(', '));
+    return;
+  }
+  if (a === 'delTask') {
+    const t = findTask(D, el.dataset.tid); if (!confirm(`Xoá việc ${t.id}?`)) return;
+    D.tasks = D.tasks.filter(x=>x!==t); D.tasks.forEach(x=>x.deps=(x.deps||[]).filter(d=>d!==t.id)); return commit(id);
+  }
+  if (a === 'addTask') {
+    const ph = el.dataset.ph, same = D.tasks.filter(t=>t.phase===ph);
+    const nid = ph + (Math.max(0, ...same.map(t=>parseInt(t.id.slice(ph.length),10)||0)) + 1);
+    const last = same[same.length-1], st = last ? addDays(last.end,1) : today();
+    D.tasks.splice(last ? D.tasks.indexOf(last)+1 : D.tasks.length, 0,
+      {id:nid, phase:ph, name:'Việc mới', start:st, end:addDays(st,6), hours:2, deps:[], done:false, steps:[], output:'', doneWhen:'', docs:[], note:''});
+    openList().push(nid); saveUI(); commit(id);
+    document.querySelector(`tr[data-row="${nid}"] input[data-f=name]`)?.select(); return;
+  }
+  if (a === 'chipDel') { const t = findTask(D, el.dataset.tid); t.docs = (t.docs||[]).filter(x=>x!==el.dataset.did); return commit(id); }
+  if (a === 'msAdd') { D.milestones.push({id:'M'+Date.now(), name:'Mốc mới', date:today(), done:false}); return commit(id); }
+  if (a === 'msDel') { if (confirm('Xoá mốc này?')) { D.milestones.splice(+el.dataset.i,1); commit(id); } return; }
+  if (a === 'svAdd') {
+    const date = document.getElementById('svDate').value, count = parseInt(document.getElementById('svCount').value,10);
+    if (!date || isNaN(count)) return alert('Nhập ngày và tổng số phiếu hợp lệ (cộng dồn).');
+    const ex = D.survey.log.find(l=>l.date===date); if (ex) ex.count = count; else D.survey.log.push({date,count});
+    return commit(id);
+  }
+  if (a === 'svDel') { D.survey.log.splice(+el.dataset.i,1); return commit(id); }
+  if (a === 'docDrive') {
+    const d = D.docs.find(x=>x.id===el.dataset.did);
+    const v = prompt(`Dán link Google Drive cho "${d.name}"\n(Drive → chuột phải file → Chia sẻ → Sao chép đường liên kết). Để trống = xoá link.`, d.drive||'');
+    if (v === null) return; d.drive = v.trim(); return commit(id);
+  }
+  if (a === 'docAdd') {
+    const name = prompt('Tên tài liệu:'); if (!name) return;
+    const path = prompt('Đường dẫn tương đối từ thư mục tien-do (vd ../draft/abc.docx) — có thể để trống:', '../') || '';
+    const drive = prompt('Link Google Drive (có thể để trống):', '') || '';
+    const group = prompt('Nhóm:', 'Khác') || 'Khác';
+    D.docs = D.docs || []; D.docs.push({id:'DOC'+Date.now(), group, name, path: path==='../'?'':path, drive}); return commit(id);
+  }
+  if (a === 'docDel') {
+    if (!confirm('Xoá tài liệu này khỏi danh sách? (file thật không bị xoá)')) return;
+    D.docs = D.docs.filter(x=>x.id!==el.dataset.did); D.tasks.forEach(t=>t.docs=(t.docs||[]).filter(x=>x!==el.dataset.did)); return commit(id);
+  }
+  if (a === 'docView') { e.preventDefault(); return openDoc(id, el.dataset.did); }
+  if (a === 'pushNow') { clearTimeout(TIMER[id]); PENDING[id] = true; return push(id); }
+  if (a === 'reloadGh') {
+    if (Object.values(PENDING).some(Boolean) && !confirm('Còn thay đổi chưa lưu lên GitHub. Vẫn tải lại (bỏ thay đổi đó)?')) return;
+    PROJECTS.forEach(p => { localStorage.removeItem(STORE+p.id+':base'); PENDING[p.id] = false; });
+    loadAll().then(render); return;
+  }
+  if (a === 'export') {
+    if (MODE !== 'gh') save(id);
+    const body = `window.PROJECT_DATA = window.PROJECT_DATA || {};\nwindow.PROJECT_DATA['${id}'] = ${JSON.stringify(DATA[id], null, 2)};\n`;
+    const blob = new Blob([body], {type:'text/javascript'}), link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = `${id}.js`; link.click(); URL.revokeObjectURL(link.href);
+    return;
+  }
+  if (a === 'revert') {
+    if (!confirm('Bỏ mọi thay đổi trên trình duyệt này và dùng lại dữ liệu trong file?')) return;
+    localStorage.removeItem(STORE+id); DATA[id] = clone(FILE[id]); render(); return;
+  }
+});
+
+function flash(tid){
+  const tr = document.querySelector(`tr[data-row="${tid}"]`); if (!tr) return;
+  tr.scrollIntoView({behavior:'smooth', block:'center'});
+  tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+}
+
+/* ======================= POPUP ======================= */
+function showModal(html){ document.getElementById('modal').innerHTML = `<div class="modal" data-act="modalBg">${html}</div>`; }
+function closeModal(){ document.getElementById('modal').innerHTML = ''; }
+
+/* Link Drive → link xem nhúng được (/preview) */
+function drivePreview(url){
+  if (!url) return '';
+  if (/\/preview([?#].*)?$/.test(url)) return url;
+  const fo = url.match(/\/folders\/([\w-]+)/);
+  if (fo) return `https://drive.google.com/embeddedfolderview?id=${fo[1]}#list`;
+  if (/(drive|docs)\.google\.com\/.*\/d\//.test(url)) return url.replace(/\/(view|edit)([?#].*)?$/, '/preview').replace(/\/d\/([\w-]+)$/, '/d/$1/preview');
+  const m = url.match(/[?&]id=([\w-]+)/);
+  return m ? `https://drive.google.com/file/d/${m[1]}/preview` : '';
+}
+
+async function openDoc(pid, did){
+  const d = (DATA[pid].docs||[]).find(x => x.id === did); if (!d) return;
+  const path = d.path || '', isDir = path.endsWith('/');
+  const ext = ((path.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  const rp = path ? repoPath(path) : null;
+  const TEXT = ['md','txt','csv'], IMG = ['png','jpg','jpeg','gif','webp'];
+  const onGh = rp && (TEXT.includes(ext) || IMG.includes(ext) || isDir);
+  const ghLink = onGh ? `https://github.com/${GH.owner}/${GH.repo}/${isDir?'tree':'blob'}/${GH.branch}/${encPath(rp)}` : '';
+  showModal(`<div class="box"><div class="mhead"><b title="${esc(path)}">${esc(d.name)}</b>
+      ${IS_LOCAL && path ? `<a class="btn" href="${esc(encPath(path))}" target="_blank" rel="noopener">Mở file trên máy</a>` : ''}
+      ${d.drive ? `<a class="btn" href="${esc(d.drive)}" target="_blank" rel="noopener">Mở Drive</a>` : ''}
+      ${ghLink ? `<a class="btn" href="${ghLink}" target="_blank" rel="noopener">Mở trên GitHub</a>` : ''}
+      <button data-act="modalClose">✕</button></div>
+    <div class="mbody" id="mbody"><p class="muted">Đang tải…</p></div></div>`);
+  const body = document.getElementById('mbody');
+  const frame = src => { const box = body.parentElement; body.remove(); box.insertAdjacentHTML('beforeend', `<iframe src="${esc(src)}"></iframe>`); };
+  try {
+    if (rp && TOKEN && (TEXT.includes(ext) || IMG.includes(ext))) {
+      const r = await ghGet(rp, true);
+      if (r.status === 404) throw new Error('Không thấy file này trên GitHub (chưa push, hoặc thuộc loại không đưa lên repo).');
+      if (!r.ok) throw new Error('Lỗi GitHub ' + r.status);
+      if (IMG.includes(ext)) body.innerHTML = `<img src="${URL.createObjectURL(await r.blob())}" style="max-width:100%">`;
+      else { const txt = await r.text();
+        body.innerHTML = ext === 'md' && window.marked ? `<div class="md">${marked.parse(txt)}</div>` : `<pre style="white-space:pre-wrap">${esc(txt)}</pre>`; }
+      return;
+    }
+    const prev = drivePreview(d.drive);
+    if (prev) return frame(prev);
+    if (IS_LOCAL && path && (ext === 'pdf' || TEXT.includes(ext) || IMG.includes(ext) || isDir)) return frame(encPath(path));
+    let why;
+    if (path && !rp) why = 'File này nằm ngoài thư mục "Đề tài 1" nên không có trên GitHub.';
+    else if (['pdf','docx','doc','xlsx','pptx'].includes(ext)) why = 'PDF / Word / Excel không đưa lên GitHub.';
+    else if (isDir) why = 'Đây là thư mục — bấm "Mở trên GitHub" để xem danh sách file.';
+    else if (!TOKEN) why = 'Chưa nhập token GitHub nên chưa đọc được file từ repo.';
+    else why = 'Chưa xem trước được loại file này.';
+    body.innerHTML = `<p>${why}</p><p class="muted">Muốn xem ngay trong popup: ở mục <b>Tài liệu</b>, bấm ✎ cạnh tài liệu này và dán link Google Drive của file (Drive cá nhân của bạn).</p>`;
+  } catch(err) { body.innerHTML = `<p class="warn" style="font-size:13px">${esc(err.message)}</p>`; }
+}
+
+function openToken(){
+  showModal(`<div class="box small"><div class="mhead"><b>Kết nối GitHub</b><button data-act="modalClose">✕</button></div>
+    <div class="mbody">
+      <p style="margin-top:0">Repo dữ liệu (riêng tư): <code>${GH.owner}/${GH.repo}</code></p>
+      <p class="muted">Dán token fine-grained (quyền <b>Contents: Read and write</b>, chỉ cho repo này). Token chỉ lưu trong trình duyệt này và chỉ gửi tới api.github.com. Đừng lưu token trên máy dùng chung.</p>
+      <input type="password" id="tokenIn" placeholder="github_pat_…" autocomplete="off">
+      <div class="row" style="margin-top:10px"><button class="primary" data-act="tokenSave">Lưu &amp; kết nối</button>
+        ${TOKEN ? '<button data-act="tokenDel">Xoá token khỏi trình duyệt này</button>' : ''}</div>
+      ${TOKEN ? '<p class="muted">Trình duyệt này đang lưu một token.</p>' : ''}
+    </div></div>`);
+  setTimeout(() => document.getElementById('tokenIn')?.focus(), 0);
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act;
+  if (a === 'modalBg') { if (e.target === el) closeModal(); return; }
+  if (a === 'modalClose') return closeModal();
+  if (a === 'tokenOpen') return openToken();
+  if (a === 'tokenSave') {
+    const v = document.getElementById('tokenIn').value.trim(); if (!v) return;
+    TOKEN = v; localStorage.setItem(STORE+'token', v); closeModal();
+    loadAll().then(render); return;
+  }
+  if (a === 'tokenDel') {
+    if (!confirm('Xoá token khỏi trình duyệt này?')) return;
+    localStorage.removeItem(STORE+'token'); location.reload();
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+loadAll().then(render);
+</script>
+</body>
+</html>
